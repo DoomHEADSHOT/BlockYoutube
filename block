@@ -1,0 +1,53 @@
+# Script to block/unblock YouTube via hosts file
+# Must be run as administrator
+
+$hostsFile = "$env:SystemRoot\System32\drivers\etc\hosts"
+$youtubeDomains = @(
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com"
+)
+
+function Block-YouTube {
+    # Check if running as admin
+    if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        Write-Error "Please run this script as Administrator"
+        return
+    }
+
+    # Backup hosts file
+    Copy-Item $hostsFile "$hostsFile.backup"
+    
+    # Add YouTube domains to hosts file
+    foreach ($domain in $youtubeDomains) {
+        $entry = "127.0.0.1 $domain"
+        if (-not (Select-String -Path $hostsFile -Pattern $domain -SimpleMatch -Quiet)) {
+            Add-Content -Path $hostsFile -Value $entry
+        }
+    }
+    
+    # Flush DNS cache
+    ipconfig /flushdns
+    Write-Host "YouTube has been blocked. To unblock, run this script with -Unblock"
+}
+
+function Unblock-YouTube {
+    # Remove YouTube entries from hosts file
+    $content = Get-Content $hostsFile
+    $content = $content | Where-Object { $line = $_
+        -not ($youtubeDomains | Where-Object { $line -match $_ })
+    }
+    $content | Set-Content $hostsFile
+    
+    ipconfig /flushdns
+    Write-Host "YouTube has been unblocked"
+}
+
+# Use -Unblock parameter to unblock instead of block
+param([switch]$Unblock)
+
+if ($Unblock) {
+    Unblock-YouTube
+} else {
+    Block-YouTube
+}
